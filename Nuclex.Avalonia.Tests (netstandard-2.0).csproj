@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <AssemblyName>Nuclex.Support.Tests</AssemblyName>
+    <RootNamespace>Nuclex.Support.Tests</RootNamespace>
+    <IntermediateOutputPath>obj\tests</IntermediateOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Source\**" />
+    <EmbeddedResource Remove="Source\**" />
+    <None Remove="Source\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove=".git" />
+    <None Remove="packages.config" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Moq" Version="4.20.70" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="Nuclex.Avalonia (netstandard-2.0).csproj" />
+  </ItemGroup>
+
+</Project>
