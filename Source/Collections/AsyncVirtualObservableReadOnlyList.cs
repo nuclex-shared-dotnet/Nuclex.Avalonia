@@ -20,11 +20,15 @@ limitations under the License.
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading.Tasks;
+using System.Diagnostics.CodeAnalysis;
 
 #if !NO_SPECIALIZED_COLLECTIONS
 using System.Collections.Specialized;
-using System.Diagnostics;
 #endif
+
+using Nuclex.Support.Collections;
 
 namespace Nuclex.Avalonia.Collections {
 
@@ -59,7 +63,7 @@ namespace Nuclex.Avalonia.Collections {
 
       /// <summary>Immediately releases all resources owned by the instance</summary>
       public void Dispose() {
-        this.virtualList = null;
+        this.virtualList = null!; // Only to make life easier got the GC
       }
 
       /// <summary>The item at the enumerator's current position</summary>
@@ -119,7 +123,7 @@ namespace Nuclex.Avalonia.Collections {
 
       /// <summary>The item at the enumerator's current position</summary>
       object IEnumerator.Current {
-        get { return Current; }
+        get { return Current!; } // No idea what the compiler's issue is here
       }
 
 #if DEBUG
@@ -145,24 +149,24 @@ namespace Nuclex.Avalonia.Collections {
     #endregion // class Enumerator
 
     /// <summary>Raised when an item has been added to the collection</summary>
-    public event EventHandler<ItemEventArgs<TItem>> ItemAdded;
+    public event EventHandler<ItemEventArgs<TItem>>? ItemAdded;
     /// <summary>Raised when an item is removed from the collection</summary>
-    public event EventHandler<ItemEventArgs<TItem>> ItemRemoved;
+    public event EventHandler<ItemEventArgs<TItem>>? ItemRemoved;
     /// <summary>Raised when an item is replaced in the collection</summary>
-    public event EventHandler<ItemReplaceEventArgs<TItem>> ItemReplaced;
+    public event EventHandler<ItemReplaceEventArgs<TItem>>? ItemReplaced;
     /// <summary>Raised when the collection is about to be cleared</summary>
     /// <remarks>
     ///   This could be covered by calling ItemRemoved for each item currently
     ///   contained in the collection, but it is often simpler and more efficient
     ///   to process the clearing of the entire collection as a special operation.
     /// </remarks>
-    public event EventHandler Clearing;
+    public event EventHandler? Clearing;
     /// <summary>Raised when the collection has been cleared</summary>
-    public event EventHandler Cleared;
+    public event EventHandler? Cleared;
 
 #if !NO_SPECIALIZED_COLLECTIONS
     /// <summary>Called when the collection has changed</summary>
-    public event NotifyCollectionChangedEventHandler CollectionChanged;
+    public event NotifyCollectionChangedEventHandler? CollectionChanged;
 #endif
 
     /// <summary>
@@ -178,9 +182,10 @@ namespace Nuclex.Avalonia.Collections {
     ///   performance from requesting multiple items at once.
     /// </remarks>
     public AsyncVirtualObservableReadOnlyList(int pageSize = 32) {
-      this.typedList = new List<TItem>();
-      this.objectList = this.typedList as IList;
+      this.typedList = new TItem[0];
+      this.objectList = (IList)this.typedList;
       this.pageSize = pageSize;
+      this.fetchedPages = new bool[0];
     }
 
     /// <summary>
@@ -201,7 +206,7 @@ namespace Nuclex.Avalonia.Collections {
         if(purgeItems) {
           int itemCount = this.assumedCount.Value;
           for(int index = 0; index < itemCount; ++index) {
-            this.typedList[index] = default(TItem);
+            this.typedList[index] = default(TItem)!; // not going to be exposed to users
           }
         }
       }
@@ -234,7 +239,7 @@ namespace Nuclex.Avalonia.Collections {
             this.pageSize
           );
           for(int index = itemIndex / this.pageSize; index < count; ++index) {
-            this.typedList[index] = default(TItem);
+            this.typedList[index] = default(TItem)!; // not going to be exposed to users
           }
         }
       }
@@ -244,7 +249,19 @@ namespace Nuclex.Avalonia.Collections {
     /// <param name="item">Item whose index will be determined</param>
     /// <returns>The index of the item in the list or -1 if not found</returns>
     public int IndexOf(TItem item) {
-      return this.typedList.IndexOf(item);
+      requireCount();
+      requireAllPages();
+
+      // TODO: this won't work, it will compare the placeholder items :-/
+
+      IComparer<TItem> itemComparer = Comparer<TItem>.Default;
+      for(int index = 0; index < this.assumedCount.Value; ++index) {
+        if(itemComparer.Compare(this.typedList[index], item) == 0) {
+          return index;
+        }
+      }
+
+      return -1;
     }
 
     /// <summary>Inserts an item into the list at the specified index</summary>
@@ -299,10 +316,7 @@ namespace Nuclex.Avalonia.Collections {
     /// <param name="item">Item the list will be checked for</param>
     /// <returns>True if the list contains the specified items</returns>
     public bool Contains(TItem item) {
-      requireCount();
-      requireAllPages();
-
-      return this.typedList.Contains(item);
+      return (IndexOf(item) != -1);
     }
 
     /// <summary>Copies the contents of the list into an array</summary>
@@ -570,6 +584,7 @@ namespace Nuclex.Avalonia.Collections {
     );
 
     /// <summary>Ensures that the total number of items is known</summary>
+    [MemberNotNull(nameof(assumedCount))]
     private void requireCount() {
       if(!this.assumedCount.HasValue) {
         int itemCount = CountItems();
@@ -589,11 +604,12 @@ namespace Nuclex.Avalonia.Collections {
         this.assumedCount.HasValue,
         "This method should only be called when item count is already known"
       );
-      int pageCount = this.fetchedPages.Length;
+
+      // We may find that the list is shorter than expected while requesting pages.
+      // But the results will come in asynchronously, so we can't wait for it.
+      int pageCount = (this.assumedCount!.Value + this.pageSize - 1) / this.pageSize;
       for(int index = 0; index < pageCount; ++index) {
         requirePage(index);
-        // CHECK: Should we throttle this by constructing a clever chain of
-        //        ContinueWith() tasks so we don't cause a flood of async requests?
       }
     }
 
@@ -609,7 +625,7 @@ namespace Nuclex.Avalonia.Collections {
       }
 
       int startIndex = pageIndex * this.pageSize;
-      int count = Math.Min(this.assumedCount.Value - startIndex, this.pageSize);
+      int count = Math.Min(this.assumedCount!.Value - startIndex, this.pageSize);
       CreatePlaceholderItems(this.typedList, pageIndex * this.pageSize, count);
 
       this.fetchedPages[pageIndex] = true; // Prevent double-fetch
@@ -619,7 +635,7 @@ namespace Nuclex.Avalonia.Collections {
       var placeholderItems = new List<TItem>(count);
       for(int index = startIndex; index < count; ++index) {
         placeholderItems[index - startIndex] = this.typedList[index];
-        OnReplaced(default(TItem), this.typedList[index], index);
+        //OnReplaced(default(TItem), this.typedList[index], index);
       }
 
       int fetchedItemCount = await FetchItemsAsync(this.typedList, startIndex, count);
@@ -630,7 +646,7 @@ namespace Nuclex.Avalonia.Collections {
       // The count may have been adjusted if this truncated the list,
       // so recalculate the actual number of items. Then send out change
       // notifications for the items that have now been fetched.
-      count = Math.Min(this.assumedCount.Value - startIndex, this.pageSize);
+      count = Math.Min(this.assumedCount!.Value - startIndex, this.pageSize);
       for(int index = startIndex; index < count; ++index) {
         OnReplaced(placeholderItems[index - startIndex], this.typedList[index], index);
       }
@@ -643,7 +659,7 @@ namespace Nuclex.Avalonia.Collections {
     /// <summary>Tracks which pages have been fetched so far</summary>
     private bool[] fetchedPages;
     /// <summary>The wrapped list under its type-safe interface</summary>
-    private IList<TItem> typedList;
+    private TItem[] typedList;
     /// <summary>The wrapped list under its object interface</summary>
     private IList objectList;
 #if DEBUG
