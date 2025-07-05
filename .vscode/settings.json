@@ -1,0 +1,16 @@
+// Workspace settings
+{
+  "files.exclude": {
+    "bin": true,
+    "obj": true,
+    "*.csproj": true,
+    "*.csproj.filters": true,
+    "*.csproj.user": true,
+    "*.ref": true,
+    "*.db": true,
+    ".gitignore": true,
+    ".editorconfig": true,
+    "build.cmd": true,
+    "build.sh": true
+  }
+}

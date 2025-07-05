@@ -1,0 +1,64 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/Nuclex.Avalonia (netstandard-2.0).csproj",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Test",
+      //"dependsOn": [ "Run" ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "test",
+        "${workspaceFolder}/Nuclex.Avalonia.Tests (netstandard-2.0).csproj",
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Publish",
+      //"dependsOn": [ "Install" ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "publish",
+        "${workspaceFolder}/Nuclex.Avalonia (netstandard-2.0).csproj",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}

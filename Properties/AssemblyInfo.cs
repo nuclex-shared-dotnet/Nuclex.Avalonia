@@ -1,7 +1,7 @@
 #region Apache License 2.0
 /*
-Nuclex .NET Framework
-Copyright (C) 2002-2024 Markus Ewald / Nuclex Development Labs
+Nuclex Foundation libraries for .NET
+Copyright (C) 2002-2025 Markus Ewald / Nuclex Development Labs
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

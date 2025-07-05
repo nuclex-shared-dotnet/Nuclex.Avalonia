@@ -1,0 +1,23 @@
+[*.cs]
+charset = utf-8
+
+# Indentation and line length
+indent_size = 2
+indent_style = space
+tab_width = 2
+max_line_length = 100
+end_of_line = lf
+
+# Organize usings
+dotnet_separate_import_directive_groups = true
+dotnet_sort_system_directives_first = true
+
+# this. and Me. preferences
+dotnet_style_qualification_for_field = true
+
+# var preferences
+csharp_style_var_when_type_is_apparent = true
+
+# New line preferences
+csharp_new_line_before_else = false
+csharp_new_line_before_open_brace = none
