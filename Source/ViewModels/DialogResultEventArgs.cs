@@ -18,23 +18,26 @@ limitations under the License.
 #endregion // Apache License 2.0
 
 using System;
-using System.Threading.Tasks;
 
-using Nuclex.Avalonia.ViewModels;
+namespace Nuclex.Avalonia.ViewModels {
 
-namespace Nuclex.Avalonie.ViewModels {
+  /// <summary>Carries the desired dialog result from a view model</summary>
+  public class DialogResultEventArgs : EventArgs {
 
-  /// <summary>Interface for dialog view models (typically modal ones)</summary>
-  public interface IDialogViewModel {
+    /// <summary>Initializes a new dialog result event argument container</summary>
+    /// <param name="result">Result the dialog should exit with</param>
+    public DialogResultEventArgs(object result) {
+      this.result = result;
+    }
 
-    /// <summary>Indicates that the view should close</summary>
-    event EventHandler<DialogResultEventArgs> Submitted;
+    /// <summary>Result that should be returned from the dialog</summary>
+    public object Result {
+      get { return this.result; }
+    }
 
-    /// <summary>Indicates that the dialog should be closed</summary>
-    /// <param name="dialogResult">Result the dialog should return</param>
-    /// <returns>A task that finishes when the submit notification has been sent</returns>
-    Task SubmitAsync(object? dialogResult = null);
+    /// <summary>Result that should be returned from the dialog</summary>
+    private readonly object result;
 
   }
 
-} // namespace Nuclex.Avalonie.ViewModels
+} // namespace Nuclex.Avalonia.ViewModels

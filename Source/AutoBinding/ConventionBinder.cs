@@ -21,6 +21,9 @@ using System;
 
 using Avalonia.Controls;
 
+using Nuclex.Avalonia.ViewModels;
+using Nuclex.Avalonie.ViewModels;
+
 namespace Nuclex.Avalonia.AutoBinding {
 
   /// <summary>
@@ -55,6 +58,27 @@ namespace Nuclex.Avalonia.AutoBinding {
     /// <param name="view">View that will be bound</param>
     /// <param name="viewModel">View model the view will be bound to</param>
     private void bind(Control view, object viewModel) {
+      IDialogViewModel? dialogViewModel = viewModel as IDialogViewModel;
+      if(dialogViewModel != null) {
+        Window? viewAsWindow = view as Window;
+        if(viewAsWindow != null) {
+          EventHandler<DialogResultEventArgs> handler = (
+            delegate(object sender, DialogResultEventArgs arguments) {
+              viewAsWindow.Close(arguments.Result);
+            }
+          );
+
+          dialogViewModel.Submitted += handler;
+
+          // Does this help anything?
+          // Without it, the view has a reference to the view model (via DataContext),
+          // and the view model references the view (via event subscription), but this
+          // shouldn't bother the .NET garbage collector at all.
+          viewAsWindow.Closed += delegate(object sender, EventArgs arguments) {
+            dialogViewModel.Submitted -= handler;
+          };
+        }
+      }
     }
 
   }
