@@ -62,25 +62,36 @@ namespace Nuclex.Avalonia.AutoBinding {
       if(dialogViewModel != null) {
         Window? viewAsWindow = view as Window;
         if(viewAsWindow != null) {
-          EventHandler<DialogResultEventArgs> handler = (
-            delegate(object sender, DialogResultEventArgs arguments) {
-              viewAsWindow.Close(arguments.Result);
-            }
-          );
-
-          dialogViewModel.Submitted += handler;
-
-          // Does this help anything?
-          // Without it, the view has a reference to the view model (via DataContext),
-          // and the view model references the view (via event subscription), but this
-          // shouldn't bother the .NET garbage collector at all.
-          viewAsWindow.Closed += delegate(object sender, EventArgs arguments) {
-            dialogViewModel.Submitted -= handler;
-          };
+          bindViewModelSubmitToDialogClose(viewAsWindow, dialogViewModel);
         }
       }
     }
 
+    /// <summary>
+    ///   Convention binding for view models with a 'Submit' event,
+    ///   closes the dialog when the view model fires the event
+    /// </summary>
+    /// <param name="dialogWindow">Window the displays the dialog's UI</param>
+    /// <param name="dialogViewModel">View model that has the 'Submit' event</param>
+    private static void bindViewModelSubmitToDialogClose(
+      Window dialogWindow, IDialogViewModel dialogViewModel
+    ) {
+      EventHandler<DialogResultEventArgs> handler = (
+        delegate(object sender, DialogResultEventArgs arguments) {
+          dialogWindow.Close(arguments.Result);
+        }
+      );
+
+      dialogViewModel.Submitted += handler;
+
+      // Does this help anything?
+      // Without it, the view has a reference to the view model (via DataContext),
+      // and the view model references the view (via event subscription), but this
+      // shouldn't bother the .NET garbage collector at all.
+      dialogWindow.Closed += delegate (object sender, EventArgs arguments) {
+        dialogViewModel.Submitted -= handler;
+      };
+    }
   }
 
 } // namespace Nuclex.Avalonia.AutoBinding

@@ -18,7 +18,6 @@ limitations under the License.
 #endregion // Apache License 2.0
 
 using System;
-using System.Threading.Tasks;
 
 using Nuclex.Avalonia.ViewModels;
 
@@ -29,11 +28,6 @@ namespace Nuclex.Avalonie.ViewModels {
 
     /// <summary>Indicates that the view should close</summary>
     event EventHandler<DialogResultEventArgs> Submitted;
-
-    /// <summary>Indicates that the dialog should be closed</summary>
-    /// <param name="dialogResult">Result the dialog should return</param>
-    /// <returns>A task that finishes when the submit notification has been sent</returns>
-    Task SubmitAsync(object? dialogResult = null);
 
   }
 

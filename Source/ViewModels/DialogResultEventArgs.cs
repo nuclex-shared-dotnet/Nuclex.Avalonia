@@ -26,17 +26,17 @@ namespace Nuclex.Avalonia.ViewModels {
 
     /// <summary>Initializes a new dialog result event argument container</summary>
     /// <param name="result">Result the dialog should exit with</param>
-    public DialogResultEventArgs(object result) {
+    public DialogResultEventArgs(object? result) {
       this.result = result;
     }
 
     /// <summary>Result that should be returned from the dialog</summary>
-    public object Result {
+    public object? Result {
       get { return this.result; }
     }
 
     /// <summary>Result that should be returned from the dialog</summary>
-    private readonly object result;
+    private readonly object? result;
 
   }
 
