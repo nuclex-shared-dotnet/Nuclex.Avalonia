@@ -23,6 +23,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
+
 
 #if !NO_SPECIALIZED_COLLECTIONS
 using System.Collections.Specialized;
@@ -63,7 +65,7 @@ namespace Nuclex.Avalonia.Collections {
 
       /// <summary>Immediately releases all resources owned by the instance</summary>
       public void Dispose() {
-        this.virtualList = null!; // Only to make life easier got the GC
+        this.virtualList = null!; // Only to decouple and make the GC's work easier
       }
 
       /// <summary>The item at the enumerator's current position</summary>
@@ -73,6 +75,8 @@ namespace Nuclex.Avalonia.Collections {
           checkVersion();
 #endif
 
+          // If the most recent call to MoveNext() returned false, it means that
+          // the enumerator has reached the end of the list, so in that
           if(this.lastMoveNextResult == false) {
             throw new InvalidOperationException("Enumerator is not on a valid position");
           }
@@ -122,8 +126,8 @@ namespace Nuclex.Avalonia.Collections {
       }
 
       /// <summary>The item at the enumerator's current position</summary>
-      object IEnumerator.Current {
-        get { return Current!; } // No idea what the compiler's issue is here
+      object? IEnumerator.Current {
+        get { return Current; }
       }
 
 #if DEBUG
@@ -149,9 +153,9 @@ namespace Nuclex.Avalonia.Collections {
     #endregion // class Enumerator
 
     /// <summary>Raised when an item has been added to the collection</summary>
-    public event EventHandler<ItemEventArgs<TItem>>? ItemAdded;
+    public event EventHandler<ItemEventArgs<TItem>>? ItemAdded { add {} remove{} }
     /// <summary>Raised when an item is removed from the collection</summary>
-    public event EventHandler<ItemEventArgs<TItem>>? ItemRemoved;
+    public event EventHandler<ItemEventArgs<TItem>>? ItemRemoved { add {} remove{} }
     /// <summary>Raised when an item is replaced in the collection</summary>
     public event EventHandler<ItemReplaceEventArgs<TItem>>? ItemReplaced;
     /// <summary>Raised when the collection is about to be cleared</summary>
@@ -160,9 +164,9 @@ namespace Nuclex.Avalonia.Collections {
     ///   contained in the collection, but it is often simpler and more efficient
     ///   to process the clearing of the entire collection as a special operation.
     /// </remarks>
-    public event EventHandler? Clearing;
+    public event EventHandler? Clearing { add {} remove{} }
     /// <summary>Raised when the collection has been cleared</summary>
-    public event EventHandler? Cleared;
+    public event EventHandler? Cleared { add {} remove{} }
 
 #if !NO_SPECIALIZED_COLLECTIONS
     /// <summary>Called when the collection has changed</summary>
@@ -182,7 +186,7 @@ namespace Nuclex.Avalonia.Collections {
     ///   performance from requesting multiple items at once.
     /// </remarks>
     public AsyncVirtualObservableReadOnlyList(int pageSize = 32) {
-      this.typedList = new TItem[0];
+      this.typedList = new List<TItem>();
       this.objectList = (IList)this.typedList;
       this.pageSize = pageSize;
       this.fetchedPages = new bool[0];
@@ -197,17 +201,50 @@ namespace Nuclex.Avalonia.Collections {
     ///   will make them available for garbage collection.
     /// </param>
     public void InvalidateAll(bool purgeItems = false) {
-      if(this.assumedCount.HasValue) { // If not fetched before, no action needed
-        int pageCount = this.fetchedPages.Length;
-        for(int index = 0; index < pageCount; ++index) {
-          this.fetchedPages[index] = false;
+      int itemCount;
+      lock(this) {
+        if(!this.assumedCount.HasValue) {
+          return; // If not fetched before, no action is needed
         }
 
-        if(purgeItems) {
-          int itemCount = this.assumedCount.Value;
-          for(int index = 0; index < itemCount; ++index) {
-            this.typedList[index] = default(TItem)!; // not going to be exposed to users
+        itemCount = this.assumedCount.Value;
+      }
+
+      // Mark the pages as un-fetched
+      int pageCount = this.fetchedPages.Length;
+      if(purgeItems) {
+        var oldItemList = new List<TItem>(capacity: this.pageSize);
+
+        for(int pageIndex = 0; pageIndex < pageCount; ++pageIndex) {
+          if(this.fetchedPages[pageIndex]) {
+            this.fetchedPages[pageIndex] = false;
+
+            // Figure out the page's item start index and how big the page is 
+            int offset = pageIndex * this.pageSize;
+            int count = Math.Min(itemCount - offset, this.pageSize);
+
+            // Make a backup of the old item values so we can provide them
+            // in the ItemReplaced change notification we'll send out.
+            for(int index = 0; index < count; ++index) {
+              oldItemList[index] = this.typedList[offset + index];
+            }
+
+            // Replace the loaded items with placeholder items
+            CreatePlaceholderItems(this.typedList, pageIndex * this.pageSize, count);
+
+            // Send out change notifications for all items we just replace with placeholders
+            for(int index = 0; index < count; ++index) {
+              OnReplaced(oldItemList[index], this.typedList[offset + index], offset + index);
+            }
+
+            // Make sure the old items aren't lingering around
+            oldItemList.Clear();
           }
+        }
+
+      } else {
+        for(int pageIndex = 0; pageIndex < pageCount; ++pageIndex) {
+          this.fetchedPages[pageIndex] = false;
         }
       }
     }
@@ -229,19 +266,22 @@ namespace Nuclex.Avalonia.Collections {
     ///   when any of them are next accessed.
     /// </remarks>
     public void Invalidate(int itemIndex, bool purgeItems = false) {
-      if(this.assumedCount.HasValue) { // If not fetched before, no action needed
-        int pageIndex = itemIndex / this.pageSize;
-        this.fetchedPages[pageIndex] = false;
-
-        if(purgeItems) {
-          int count = Math.Min(
-            this.assumedCount.Value - (this.pageSize * pageIndex),
-            this.pageSize
-          );
-          for(int index = itemIndex / this.pageSize; index < count; ++index) {
-            this.typedList[index] = default(TItem)!; // not going to be exposed to users
-          }
+      lock(this) {
+        if(!this.assumedCount.HasValue) {
+          return; // If not fetched before, no action is needed
         }
+      }
+
+      // Mark the entie page as needing re-fetching (we've got no other choice)
+      int pageIndex = itemIndex / this.pageSize;
+      this.fetchedPages[pageIndex] = false;
+
+      // If we're asked to also purge the item, replace the item with
+      // a placeholder item and trigger the change notification
+      if(purgeItems) {
+        TItem oldItem = this.typedList[itemIndex];
+        CreatePlaceholderItems(this.typedList, itemIndex, 1);
+        OnReplaced(oldItem, this.typedList[itemIndex], itemIndex);
       }
     }
 
@@ -249,19 +289,7 @@ namespace Nuclex.Avalonia.Collections {
     /// <param name="item">Item whose index will be determined</param>
     /// <returns>The index of the item in the list or -1 if not found</returns>
     public int IndexOf(TItem item) {
-      requireCount();
-      requireAllPages();
-
-      // TODO: this won't work, it will compare the placeholder items :-/
-
-      IComparer<TItem> itemComparer = Comparer<TItem>.Default;
-      for(int index = 0; index < this.assumedCount.Value; ++index) {
-        if(itemComparer.Compare(this.typedList[index], item) == 0) {
-          return index;
-        }
-      }
-
-      return -1;
+      return this.typedList.IndexOf(item);
     }
 
     /// <summary>Inserts an item into the list at the specified index</summary>
@@ -316,7 +344,10 @@ namespace Nuclex.Avalonia.Collections {
     /// <param name="item">Item the list will be checked for</param>
     /// <returns>True if the list contains the specified items</returns>
     public bool Contains(TItem item) {
-      return (IndexOf(item) != -1);
+      requireCount();
+      requireAllPages();
+
+      return this.typedList.Contains(item);
     }
 
     /// <summary>Copies the contents of the list into an array</summary>
@@ -334,14 +365,16 @@ namespace Nuclex.Avalonia.Collections {
     /// <summary>Total number of items in the list</summary>
     public int Count {
       get {
-        requireCount();
-        return this.assumedCount.Value;
+        return requireCount();
       }
     }
 
     /// <summary>Whether the list is a read-only list</summary>
     public bool IsReadOnly {
-      get { return this.typedList.IsReadOnly; }
+      get {
+        //return this.typedList.IsReadOnly;
+        return true;
+      }
     }
 
     /// <summary>Removes the specified item from the list</summary>
@@ -402,14 +435,14 @@ namespace Nuclex.Avalonia.Collections {
     /// <returns>
     ///   The position at which the item has been inserted or -1 if the item was not inserted
     /// </returns>
-    int IList.Add(object value) {
+    int IList.Add(object? value) {
       throw new NotSupportedException("Cannot add items into a read-only list");
     }
 
     /// <summary>Checks whether the list contains the specified item</summary>
     /// <param name="item">Item the list will be checked for</param>
     /// <returns>True if the list contains the specified items</returns>
-    bool IList.Contains(object item) {
+    bool IList.Contains(object? item) {
       requireCount();
       requireAllPages();
       return this.objectList.Contains(item);
@@ -418,7 +451,7 @@ namespace Nuclex.Avalonia.Collections {
     /// <summary>Determines the index of the specified item in the list</summary>
     /// <param name="item">Item whose index will be determined</param>
     /// <returns>The index of the item in the list or -1 if not found</returns>
-    int IList.IndexOf(object item) {
+    int IList.IndexOf(object? item) {
       requireCount();
       requireAllPages();
       return this.objectList.IndexOf(item);
@@ -427,7 +460,7 @@ namespace Nuclex.Avalonia.Collections {
     /// <summary>Inserts an item into the list at the specified index</summary>
     /// <param name="index">Index the item will be inserted at</param>
     /// <param name="item">Item that will be inserted into the list</param>
-    void IList.Insert(int index, object item) {
+    void IList.Insert(int index, object? item) {
       throw new NotSupportedException("Cannot insert items into a read-only list");
     }
 
@@ -438,14 +471,14 @@ namespace Nuclex.Avalonia.Collections {
 
     /// <summary>Removes the specified item from the list</summary>
     /// <param name="item">Item that will be removed from the list</param>
-    void IList.Remove(object item) {
+    void IList.Remove(object? item) {
       throw new NotSupportedException("Cannot remove items from a read-only list");
     }
 
     /// <summary>Accesses the item at the specified index in the list</summary>
     /// <param name="index">Index of the item that will be accessed</param>
     /// <returns>The item at the specified index</returns>
-    object IList.this[int index] {
+    object? IList.this[int index] {
       get {
         requireCount();
         requirePage(index / this.pageSize);
@@ -453,55 +486,11 @@ namespace Nuclex.Avalonia.Collections {
         return this.objectList[index];
       }
       set {
-        // Make sure the page is fetched, otherwise, the item would only suddenly
-        // revert to its state in the source when the pages around it is fetchd later.
-        requireCount();
-        requirePage(index / this.pageSize);
-#if DEBUG
-        ++this.version;
-#endif
-        TItem oldItem = this.typedList[index];
-        this.objectList[index] = value;
-        TItem newItem = this.typedList[index];
-        OnReplaced(oldItem, newItem, index);
+        throw new NotSupportedException("Cannot assign items into a read-only list");
       }
     }
 
     #endregion // IList implementation
-
-    /// <summary>Fires the 'ItemAdded' event</summary>
-    /// <param name="item">Item that has been added to the collection</param>
-    /// <param name="index">Index of the added item</param>
-    protected virtual void OnAdded(TItem item, int index) {
-      if(ItemAdded != null) {
-        ItemAdded(this, new ItemEventArgs<TItem>(item));
-      }
-#if !NO_SPECIALIZED_COLLECTIONS
-      if(CollectionChanged != null) {
-        CollectionChanged(
-          this,
-          new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, item, index)
-        );
-      }
-#endif
-    }
-
-    /// <summary>Fires the 'ItemRemoved' event</summary>
-    /// <param name="item">Item that has been removed from the collection</param>
-    /// <param name="index">Index the item has been removed from</param>
-    protected virtual void OnRemoved(TItem item, int index) {
-      if(ItemRemoved != null) {
-        ItemRemoved(this, new ItemEventArgs<TItem>(item));
-      }
-#if !NO_SPECIALIZED_COLLECTIONS
-      if(CollectionChanged != null) {
-        CollectionChanged(
-          this,
-          new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, item, index)
-        );
-      }
-#endif
-    }
 
     /// <summary>Fires the 'ItemReplaced' event</summary>
     /// <param name="oldItem">Item that has been replaced</param>
@@ -519,25 +508,6 @@ namespace Nuclex.Avalonia.Collections {
             NotifyCollectionChangedAction.Replace, newItem, oldItem, index
           )
         );
-      }
-#endif
-    }
-
-    /// <summary>Fires the 'Clearing' event</summary>
-    protected virtual void OnClearing() {
-      if(Clearing != null) {
-        Clearing(this, EventArgs.Empty);
-      }
-    }
-
-    /// <summary>Fires the 'Cleared' event</summary>
-    protected virtual void OnCleared() {
-      if(Cleared != null) {
-        Cleared(this, EventArgs.Empty);
-      }
-#if !NO_SPECIALIZED_COLLECTIONS
-      if(CollectionChanged != null) {
-        CollectionChanged(this, Constants.NotifyCollectionResetEventArgs);
       }
 #endif
     }
@@ -583,16 +553,58 @@ namespace Nuclex.Avalonia.Collections {
       IList<TItem> target, int startIndex, int count
     );
 
+    /// <summary>Reports errors when fetching data</summary>
+    /// <param name="error">Exception that has occured</param>
+    /// <param name="action">Describes the action during which the error happened</param>
+    protected abstract void HandleFetchError(Exception error, string action);
+
     /// <summary>Ensures that the total number of items is known</summary>
+    /// <returns>The item count</returns>
     [MemberNotNull(nameof(assumedCount))]
-    private void requireCount() {
-      if(!this.assumedCount.HasValue) {
-        int itemCount = CountItems();
+    private int requireCount() {
+      lock(this) {
+        if(this.assumedCount.HasValue) {
+          return this.assumedCount.Value;
+        }
+      }
+
+      int itemCount;
+      try {
+        itemCount = CountItems();
+      }
+      catch(Exception error) {
+        lock(this) {
+          this.assumedCount = 0; // Act as if the collection has zero items
+        }
+
+        // Do not let the error bubble up into what is likely an unsuspecting
+        // data grid control or virtualized list widget. Let the user decide what
+        // to do about the error - i.e. set an error flag in their view model.
+        HandleFetchError(
+          error, "Failed to determine the number of items in the collection"
+        );
+        return 0;
+      } // try CountItems() catch
+
+      // Items were counted successfully, so adopt the count and initialize our
+      // internal arrays to avoid having to resize the arrays later on (which
+      // saves us a few lock statements)
+      lock(this) {
         this.assumedCount = itemCount;
 
         int pageCount = (itemCount + this.pageSize - 1) / this.pageSize;
         this.fetchedPages = new bool[pageCount];
-      }
+
+        // Resize the list (so we don't have to mutex-lock the list itself),
+        // but put default items in there. We'll create placeholders when they
+        // are accessed, not before (ideally, I'd want uninitialized instances
+        // here, but that would need very thorough verification
+        while(this.typedList.Count < itemCount) {
+          this.typedList.Add(default(TItem)!);
+        }
+      } // lock this
+
+      return itemCount;
     }
 
     /// <summary>Ensures that all items have fetched</summary>
@@ -600,55 +612,96 @@ namespace Nuclex.Avalonia.Collections {
     ///   Avoid if possible.
     /// </remarks>
     private void requireAllPages() {
-      Debug.Assert(
-        this.assumedCount.HasValue,
-        "This method should only be called when item count is already known"
-      );
+      lock(this) {
+        Debug.Assert(
+          this.assumedCount.HasValue,
+          "This method should only be called when item count is already known"
+        );
+      }
 
-      // We may find that the list is shorter than expected while requesting pages.
-      // But the results will come in asynchronously, so we can't wait for it.
-      int pageCount = (this.assumedCount!.Value + this.pageSize - 1) / this.pageSize;
+      int pageCount = this.fetchedPages.Length;
       for(int index = 0; index < pageCount; ++index) {
         requirePage(index);
+        // CHECK: Should we throttle this by constructing a clever chain of
+        //        ContinueWith() tasks so we don't cause a flood of async requests?
       }
     }
 
     /// <summary>Ensures that the specified page has been fetched</summary>
     /// <param name="pageIndex">Index of the page that needs to be fetched</param>
     private async void requirePage(int pageIndex) {
-      Debug.Assert(
-        this.assumedCount.HasValue,
-        "This method should only be called when item count is already known"
-      );
-      if(this.fetchedPages[pageIndex]) {
+      int itemCount;
+      lock(this) {
+        if(!this.assumedCount.HasValue) {
+          Debug.Assert(
+            this.assumedCount.HasValue,
+            "This method should only be called when item count is already known"
+          );
+          return;
+        }
+        itemCount = this.assumedCount.Value;
+      }
+
+      // If the page is already fetched (or in flight), do nothing
+      if((pageIndex >= this.fetchedPages.Length) || this.fetchedPages[pageIndex]) {
         return;
       }
 
-      int startIndex = pageIndex * this.pageSize;
-      int count = Math.Min(this.assumedCount!.Value - startIndex, this.pageSize);
-      CreatePlaceholderItems(this.typedList, pageIndex * this.pageSize, count);
+      // The page was not fetched, so synchronously fill it with place holder items
+      // as a first step (their creation should be fast and immediate).
+      int offset = pageIndex * this.pageSize;
+      int count = Math.Min(itemCount - offset, this.pageSize);
+      CreatePlaceholderItems(this.typedList, offset, count);
 
+      // Ensure the items are present before marking the page as fetched
+      Interlocked.MemoryBarrier();
       this.fetchedPages[pageIndex] = true; // Prevent double-fetch
 
-      // Send out change notifications that the items have been replaced
-      // (at this point, they're only placeholder items, of course)
-      var placeholderItems = new List<TItem>(count);
-      for(int index = startIndex; index < count; ++index) {
-        placeholderItems[index - startIndex] = this.typedList[index];
-        //OnReplaced(default(TItem), this.typedList[index], index);
+      // Remember the placeholder items that are going to be replaced by
+      // the fetch operation below,allowing us to report these in our change notification
+      var placeholderItems = new List<TItem>(capacity: count);
+      for(int index = offset; index < count; ++index) {
+        placeholderItems.Add(this.typedList[index + offset]);
+
+        // We act as if the whole list was filled with place holders from the start,
+        // but only realize these as needed (so no change notification for these).
+        // If we did it right, the user will not be able to ever see the uninitialized
+        // items, yet we only create placeholders when they are really needed.
+        //OnReplaced(default(TItem), this.typedList[index + offset], index);
       }
 
-      int fetchedItemCount = await FetchItemsAsync(this.typedList, startIndex, count);
+      // Now request the items on the page. This request will run asynchronously,
+      // but we'll use an await to get to deliver change notifications once
+      // the page has been fetched and the items are there.
+      int fetchedItemCount;
+      try {
+        fetchedItemCount = await FetchItemsAsync(this.typedList, offset, count);
+      }
+      catch(Exception error) {
+
+        // Do not let the error bubble up into what is likely an unsuspecting
+        // data grid control or virtualized list widget. Let the user decide what
+        // to do about the error - i.e. set an error flag in their view model.
+        HandleFetchError(
+          error, $"Failed to fetch list items {offset} to {offset + count}"
+        );
+        this.fetchedPages[pageIndex] = false; // We failed!
+        return; // Leave the placeholder items in
+
+      }
       if(fetchedItemCount < this.pageSize) {
-        this.assumedCount = startIndex + fetchedItemCount;
+        itemCount = offset + fetchedItemCount;
+        lock(this) {
+          this.assumedCount = itemCount;
+        }
       }
 
       // The count may have been adjusted if this truncated the list,
       // so recalculate the actual number of items. Then send out change
       // notifications for the items that have now been fetched.
-      count = Math.Min(this.assumedCount!.Value - startIndex, this.pageSize);
-      for(int index = startIndex; index < count; ++index) {
-        OnReplaced(placeholderItems[index - startIndex], this.typedList[index], index);
+      count = Math.Min(itemCount - offset, this.pageSize);
+      for(int index = offset; index < count; ++index) {
+        OnReplaced(placeholderItems[index - offset], this.typedList[index], index);
       }
     }
 
@@ -659,7 +712,7 @@ namespace Nuclex.Avalonia.Collections {
     /// <summary>Tracks which pages have been fetched so far</summary>
     private bool[] fetchedPages;
     /// <summary>The wrapped list under its type-safe interface</summary>
-    private TItem[] typedList;
+    private IList<TItem> typedList;
     /// <summary>The wrapped list under its object interface</summary>
     private IList objectList;
 #if DEBUG

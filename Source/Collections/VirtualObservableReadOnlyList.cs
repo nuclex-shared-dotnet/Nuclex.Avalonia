@@ -23,7 +23,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-
 #if !NO_SPECIALIZED_COLLECTIONS
 using System.Collections.Specialized;
 #endif
@@ -597,19 +596,23 @@ namespace Nuclex.Avalonia.Collections {
         this.assumedCount.HasValue,
         "This method should only be called when item count is already known"
       );
-      if(!this.fetchedPages[pageIndex]) {
-        int count = Math.Min(
-          this.assumedCount!.Value - (this.pageSize * pageIndex),
-          this.pageSize
-        );
 
-        int fetchedItemCount = FetchItems(this.typedList, pageIndex * this.pageSize, count);
-        if(fetchedItemCount < this.pageSize) {
-          this.assumedCount = pageIndex * this.pageSize + fetchedItemCount;
-        }
-
-        this.fetchedPages[pageIndex] = true;
+      // If the page is already fetched (or in flight), do nothing
+      if((pageIndex >= this.fetchedPages.Length) || this.fetchedPages[pageIndex]) {
+        return;
       }
+
+      int count = Math.Min(
+        this.assumedCount!.Value - (this.pageSize * pageIndex),
+        this.pageSize
+      );
+
+      int fetchedItemCount = FetchItems(this.typedList, pageIndex * this.pageSize, count);
+      if(fetchedItemCount < this.pageSize) {
+        this.assumedCount = pageIndex * this.pageSize + fetchedItemCount;
+      }
+
+      this.fetchedPages[pageIndex] = true;
     }
 
     /// <summary>Number of items the collection believes it has</summary>
