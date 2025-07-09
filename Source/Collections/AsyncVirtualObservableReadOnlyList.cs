@@ -289,7 +289,19 @@ namespace Nuclex.Avalonia.Collections {
     /// <param name="item">Item whose index will be determined</param>
     /// <returns>The index of the item in the list or -1 if not found</returns>
     public int IndexOf(TItem item) {
-      return this.typedList.IndexOf(item);
+      requireCount();
+      requireAllPages();
+
+      // TODO: this won't work, it will compare the placeholder items :-/
+
+      IComparer<TItem> itemComparer = Comparer<TItem>.Default;
+      for(int index = 0; index < this.assumedCount.Value; ++index) {
+        if(itemComparer.Compare(this.typedList[index], item) == 0) {
+          return index;
+        }
+      }
+
+      return -1;
     }
 
     /// <summary>Inserts an item into the list at the specified index</summary>
@@ -344,10 +356,8 @@ namespace Nuclex.Avalonia.Collections {
     /// <param name="item">Item the list will be checked for</param>
     /// <returns>True if the list contains the specified items</returns>
     public bool Contains(TItem item) {
-      requireCount();
-      requireAllPages();
-
-      return this.typedList.Contains(item);
+      // TODO: this won't work, it will compare the placeholder items :-/
+      return (IndexOf(item) != -1);
     }
 
     /// <summary>Copies the contents of the list into an array</summary>
@@ -359,14 +369,13 @@ namespace Nuclex.Avalonia.Collections {
       requireCount();
       requireAllPages();
 
+      // TODO: this won't work, it will copy the placeholder items :-/
       this.typedList.CopyTo(array, arrayIndex);
     }
 
     /// <summary>Total number of items in the list</summary>
     public int Count {
-      get {
-        return requireCount();
-      }
+      get { return requireCount(); }
     }
 
     /// <summary>Whether the list is a read-only list</summary>
