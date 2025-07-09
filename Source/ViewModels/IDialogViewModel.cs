@@ -21,7 +21,7 @@ using System;
 
 using Nuclex.Avalonia.ViewModels;
 
-namespace Nuclex.Avalonie.ViewModels {
+namespace Nuclex.Avalonia.ViewModels {
 
   /// <summary>Interface for dialog view models (typically modal ones)</summary>
   public interface IDialogViewModel {
@@ -31,4 +31,4 @@ namespace Nuclex.Avalonie.ViewModels {
 
   }
 
-} // namespace Nuclex.Avalonie.ViewModels
+} // namespace Nuclex.Avalonia.ViewModels

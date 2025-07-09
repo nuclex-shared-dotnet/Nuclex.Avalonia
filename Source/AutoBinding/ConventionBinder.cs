@@ -22,7 +22,6 @@ using System;
 using Avalonia.Controls;
 
 using Nuclex.Avalonia.ViewModels;
-using Nuclex.Avalonie.ViewModels;
 
 namespace Nuclex.Avalonia.AutoBinding {
 
@@ -92,6 +91,7 @@ namespace Nuclex.Avalonia.AutoBinding {
         dialogViewModel.Submitted -= handler;
       };
     }
+
   }
 
 } // namespace Nuclex.Avalonia.AutoBinding

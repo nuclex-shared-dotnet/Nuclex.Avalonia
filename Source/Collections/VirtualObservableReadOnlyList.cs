@@ -599,7 +599,7 @@ namespace Nuclex.Avalonia.Collections {
       );
       if(!this.fetchedPages[pageIndex]) {
         int count = Math.Min(
-          this.assumedCount.Value - (this.pageSize * pageIndex),
+          this.assumedCount!.Value - (this.pageSize * pageIndex),
           this.pageSize
         );
 
