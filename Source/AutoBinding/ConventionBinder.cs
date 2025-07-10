@@ -87,7 +87,7 @@ namespace Nuclex.Avalonia.AutoBinding {
       // Without it, the view has a reference to the view model (via DataContext),
       // and the view model references the view (via event subscription), but this
       // shouldn't bother the .NET garbage collector at all.
-      dialogWindow.Closed += delegate (object sender, EventArgs arguments) {
+      dialogWindow.Closed += delegate(object sender, EventArgs arguments) {
         dialogViewModel.Submitted -= handler;
       };
     }
