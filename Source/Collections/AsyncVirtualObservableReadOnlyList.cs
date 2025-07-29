@@ -25,7 +25,6 @@ using System.Threading.Tasks;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
-
 #if !NO_SPECIALIZED_COLLECTIONS
 using System.Collections.Specialized;
 #endif
@@ -230,9 +229,19 @@ namespace Nuclex.Avalonia.Collections {
             }
 
             // Replace the loaded items with placeholder items
-            CreatePlaceholderItems(this.typedList, pageIndex * this.pageSize, count);
+#if DEBUG
+            System.Diagnostics.Trace.WriteLine(
+              $"avor: setting up placeholders for items ${offset} +${count}"
+            );
+#endif
+            CreatePlaceholderItems(this.typedList, offset, count);
 
             // Send out change notifications for all items we just replace with placeholders
+#if DEBUG
+            System.Diagnostics.Trace.WriteLine(
+              $"avor: sending 'replace' notifications for items ${offset} +${count}"
+            );
+#endif
             for(int index = 0; index < count; ++index) {
               OnReplaced(oldItemList[index], this.typedList[offset + index], offset + index);
             }
@@ -280,7 +289,17 @@ namespace Nuclex.Avalonia.Collections {
       // a placeholder item and trigger the change notification
       if(purgeItems) {
         TItem oldItem = this.typedList[itemIndex];
+#if DEBUG
+        System.Diagnostics.Trace.WriteLine(
+          $"avor: setting up placeholder for item ${itemIndex}"
+        );
+#endif
         CreatePlaceholderItems(this.typedList, itemIndex, 1);
+#if DEBUG
+        System.Diagnostics.Trace.WriteLine(
+          $"avor: sending 'replace' notifications for item ${itemIndex}"
+        );
+#endif
         OnReplaced(oldItem, this.typedList[itemIndex], itemIndex);
       }
     }
@@ -293,6 +312,7 @@ namespace Nuclex.Avalonia.Collections {
       requireAllPages();
 
       // TODO: this won't work, it will compare the placeholder items :-/
+      //       (because the pages are still being fetched at this point)
 
       IComparer<TItem> itemComparer = Comparer<TItem>.Default;
       for(int index = 0; index < this.assumedCount.Value; ++index) {
@@ -328,16 +348,7 @@ namespace Nuclex.Avalonia.Collections {
         return this.typedList[index];
       }
       set {
-        // Make sure the page is fetched, otherwise, the item would only suddenly
-        // revert to its state in the source when the pages around it is fetchd later.
-        requireCount();
-        requirePage(index / this.pageSize);
-#if DEBUG
-        ++this.version;
-#endif
-        TItem oldItem = this.typedList[index];
-        this.typedList[index] = value;
-        OnReplaced(oldItem, value, index);
+        throw new NotSupportedException("Cannot replace items in a read-only list");
       }
     }
 
@@ -579,6 +590,9 @@ namespace Nuclex.Avalonia.Collections {
 
       int itemCount;
       try {
+#if DEBUG
+        System.Diagnostics.Trace.WriteLine("avor: counting items synchronously");
+#endif
         itemCount = CountItems();
       }
       catch(Exception error) {
@@ -628,6 +642,12 @@ namespace Nuclex.Avalonia.Collections {
         );
       }
 
+#if DEBUG
+      System.Diagnostics.Trace.WriteLine(
+        $"avor: warning - a scanning operation had to request all available pages"
+      );
+#endif
+
       int pageCount = this.fetchedPages.Length;
       for(int index = 0; index < pageCount; ++index) {
         requirePage(index);
@@ -660,6 +680,11 @@ namespace Nuclex.Avalonia.Collections {
       // as a first step (their creation should be fast and immediate).
       int offset = pageIndex * this.pageSize;
       int count = Math.Min(itemCount - offset, this.pageSize);
+#if DEBUG
+      System.Diagnostics.Trace.WriteLine(
+        $"avor: setting up placeholders for items ${offset} +${count}"
+      );
+#endif
       CreatePlaceholderItems(this.typedList, offset, count);
 
       // Ensure the items are present before marking the page as fetched
@@ -669,7 +694,7 @@ namespace Nuclex.Avalonia.Collections {
       // Remember the placeholder items that are going to be replaced by
       // the fetch operation below,allowing us to report these in our change notification
       var placeholderItems = new List<TItem>(capacity: count);
-      for(int index = offset; index < count; ++index) {
+      for(int index = 0; index < count; ++index) {
         placeholderItems.Add(this.typedList[index + offset]);
 
         // We act as if the whole list was filled with place holders from the start,
@@ -684,7 +709,17 @@ namespace Nuclex.Avalonia.Collections {
       // the page has been fetched and the items are there.
       int fetchedItemCount;
       try {
+#if DEBUG
+        System.Diagnostics.Trace.WriteLine(
+          $"avor: background-fetching items ${offset} +${count}"
+        );
+#endif
         fetchedItemCount = await FetchItemsAsync(this.typedList, offset, count);
+#if DEBUG
+        System.Diagnostics.Trace.WriteLine(
+          $"avor: finished background-fetching items ${offset} +${count}"
+        );
+#endif
       }
       catch(Exception error) {
 
@@ -709,8 +744,13 @@ namespace Nuclex.Avalonia.Collections {
       // so recalculate the actual number of items. Then send out change
       // notifications for the items that have now been fetched.
       count = Math.Min(itemCount - offset, this.pageSize);
-      for(int index = offset; index < count; ++index) {
-        OnReplaced(placeholderItems[index - offset], this.typedList[index], index);
+#if DEBUG
+      System.Diagnostics.Trace.WriteLine(
+        $"avor: sending 'replace' notifications for items ${offset} +${count}"
+      );
+#endif
+      for(int index = 0; index < count; ++index) {
+        OnReplaced(placeholderItems[index], this.typedList[index + offset], index + offset);
       }
     }
 
