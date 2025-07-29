@@ -627,6 +627,10 @@ namespace Nuclex.Avalonia.Collections {
         }
       } // lock this
 
+#if DEBUG
+      ++this.version;
+#endif
+
       return itemCount;
     }
 
@@ -738,6 +742,9 @@ namespace Nuclex.Avalonia.Collections {
         lock(this) {
           this.assumedCount = itemCount;
         }
+#if DEBUG
+        ++this.version;
+#endif
       }
 
       // The count may have been adjusted if this truncated the list,
