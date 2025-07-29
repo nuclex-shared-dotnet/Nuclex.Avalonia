@@ -118,6 +118,8 @@ namespace Nuclex.Avalonia.Collections {
 
       /// <summary>Resets the enumerator to its initial position</summary>
       public void Reset() {
+        this.virtualList.requireCount(); // to fix version
+
         this.currentItemIndex = -1;
 #if DEBUG
         this.expectedVersion = this.virtualList.version;
@@ -532,6 +534,39 @@ namespace Nuclex.Avalonia.Collections {
 #endif
     }
 
+#if false
+    /// <summary>Forces the items list to be allocated</summary>
+    /// <remarks>
+    ///   If your item count is already known by the time the list is constructed,
+    ///   you can call this method in your constructor and avoid potential enumerator
+    ///   version exceptions due to the underlying list changing between enumerator
+    ///   creation and enumerating the first item.
+    /// </remarks>
+    protected void ForceItemAllocation() {
+      requireCount();
+    }
+
+    protected bool IsFetched(int itemIndex) {
+      requireCount();
+      return this.fetchedPages[itemIndex / this.pageSize];
+    }
+#endif
+
+    /// <summary>Retrieves an item by index without triggering a fetch</summary>
+    /// <param name="index">Index of the item that will be retrieved</param>
+    /// <returns>The item at the specified index</returns>
+    /// <remarks>
+    ///   You can use this method if your lazy-loaded collected has, for example, an extra
+    ///   <code>IsSelected</code> column which the user can toggle on or off. By checking
+    ///   the <code>IsSelected</code> state via this method, you avoid fetching any pages
+    ///   merely to check if the user selected them. You will be exposed to placeholder
+    ///   items (and even null items until I fix this...)
+    /// </remarks>
+    protected TItem GetAtIndexWithoutFetching(int index) {
+      requireCount();
+      return this.typedList[index];
+    }
+
     /// <summary>Counts the total number of items in the virtual collection</summary>
     /// <returns>The total number of items</returns>
     protected abstract int CountItems();
@@ -765,7 +800,7 @@ namespace Nuclex.Avalonia.Collections {
     private int? assumedCount;
     /// <summary>Number of items to fetch in a single request</summary>
     private readonly int pageSize;
-    /// <summary>Tracks which pages have been fetched so far</summary>
+    /// <summary>Tracks which pages have been requested so far</summary>
     private bool[] fetchedPages;
     /// <summary>The wrapped list under its type-safe interface</summary>
     private IList<TItem> typedList;
