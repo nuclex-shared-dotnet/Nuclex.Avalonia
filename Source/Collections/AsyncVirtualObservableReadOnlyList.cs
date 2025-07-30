@@ -811,11 +811,13 @@ namespace Nuclex.Avalonia.Collections {
           if(fetchedItemCount < this.pageSize) {
             itemCount = offset + fetchedItemCount;
             lock(this) {
-              this.assumedCount = itemCount;
+              if(itemCount < this.assumedCount) {
+                this.assumedCount = itemCount;
+#if DEBUG
+                ++this.version;
+#endif
+              }
             }
-  #if DEBUG
-            ++this.version;
-  #endif
           }
 
           // The count may have been adjusted if this truncated the list,
