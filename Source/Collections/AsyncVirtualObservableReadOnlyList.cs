@@ -26,7 +26,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Collections.Concurrent;
 
-
 #if !NO_SPECIALIZED_COLLECTIONS
 using System.Collections.Specialized;
 #endif
@@ -171,6 +170,9 @@ namespace Nuclex.Avalonia.Collections {
     public event EventHandler? Clearing { add {} remove{} }
     /// <summary>Raised when the collection has been cleared</summary>
     public event EventHandler? Cleared { add {} remove{} }
+
+    /// <summary>Triggered when additional items have been lazy-loaded</summary>
+    public event EventHandler<LazyFetchEventArgs>? ItemsFetched;
 
 #if !NO_SPECIALIZED_COLLECTIONS
     /// <summary>Called when the collection has changed</summary>
@@ -533,18 +535,15 @@ namespace Nuclex.Avalonia.Collections {
     /// <param name="newItem">New item the original item was replaced with</param>
     /// <param name="index">Index of the replaced item</param>
     protected virtual void OnReplaced(TItem oldItem, TItem newItem, int index) {
-      if(ItemReplaced != null) {
-        ItemReplaced(this, new ItemReplaceEventArgs<TItem>(oldItem, newItem));
-      }
+      ItemReplaced?.Invoke(this, new ItemReplaceEventArgs<TItem>(oldItem, newItem));
+
 #if !NO_SPECIALIZED_COLLECTIONS
-      if(CollectionChanged != null) {
-        CollectionChanged(
-          this,
-          new NotifyCollectionChangedEventArgs(
-            NotifyCollectionChangedAction.Replace, newItem, oldItem, index
-          )
-        );
-      }
+      CollectionChanged?.Invoke(
+        this,
+        new NotifyCollectionChangedEventArgs(
+          NotifyCollectionChangedAction.Replace, newItem, oldItem, index
+        )
+      );
 #endif
     }
 
@@ -565,6 +564,13 @@ namespace Nuclex.Avalonia.Collections {
       return this.fetchedPages[itemIndex / this.pageSize];
     }
 #endif
+
+    /// <summary>Fires the 'ItemsFetched' event</summary>
+    /// <param name="startIndex">Index of the first fetched item</param>
+    /// <param name="count">Number of items that have been fetched</param>
+    protected virtual void OnFetched(int startIndex, int count) {
+      ItemsFetched?.Invoke(this, new LazyFetchEventArgs(startIndex, count));
+    }
 
     /// <summary>Retrieves an item by index without triggering a fetch</summary>
     /// <param name="index">Index of the item that will be retrieved</param>
@@ -722,8 +728,6 @@ namespace Nuclex.Avalonia.Collections {
           return;
         }
         itemCount = this.assumedCount.Value;
-
-        //if(thi)
       }
 
       // If the page is already fetched (or in flight), do nothing
@@ -832,6 +836,9 @@ namespace Nuclex.Avalonia.Collections {
           for(int index = 0; index < count; ++index) {
             OnReplaced(previousItems[index], this.typedList[index + offset], index + offset);
           }
+
+          // Notify that we've fetched additional items
+          OnFetched(offset, count);
 
           // See if there is another page we need to fetch. If there is, continue
           // with that page, otherwise, we're done, so we clear the isFetching flag

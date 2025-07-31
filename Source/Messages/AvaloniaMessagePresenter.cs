@@ -107,7 +107,14 @@ namespace Nuclex.Avalonia.Messages {
             }
           )
         );
-        return messageBox.ShowAsync(); // TODO: Make modal to current or main window
+
+        Window? activeWindow = this.tracker.ActiveWindow;
+        if(activeWindow == null) {
+          return messageBox.ShowAsync();
+        } else {
+          //return messageBox.ShowAsPopupAsync(activeWindow);
+          return messageBox.ShowWindowDialogAsync(activeWindow);
+        }
       }
     }
 
