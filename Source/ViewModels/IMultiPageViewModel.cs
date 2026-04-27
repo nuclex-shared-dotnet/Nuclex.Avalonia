@@ -19,15 +19,22 @@ limitations under the License.
 
 using System;
 
-using Nuclex.Avalonia.ViewModels;
+using Nuclex.Avalonia.Commands;
 
 namespace Nuclex.Avalonia.ViewModels {
 
-  /// <summary>Interface for dialog view models (typically modal ones)</summary>
-  public interface IDialogViewModel {
+  /// <summary>Interface for view models that can switch between different pages</summary>
+  /// <typeparam name="TPageEnumeration">Enum type by which pages can be indicated</typeparam>
+  public interface IMultiPageViewModel<TPageEnumeration> {
 
-    /// <summary>Indicates that the view should close</summary>
-    event EventHandler<DialogResultEventArgs> Submitted;
+    /// <summary>Command to switch the active tool page</summary>
+    IAsyncCommand<TPageEnumeration> SwitchPageCommand { get; }
+
+    /// <summary>The currently displayed page</summary>
+    TPageEnumeration? ActivePage { get; }
+
+    /// <summary>View model for the page that is currently being shown</summary>
+    object? ActivePageViewModel { get; }
 
   }
 

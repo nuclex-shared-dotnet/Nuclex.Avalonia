@@ -18,16 +18,18 @@ limitations under the License.
 #endregion // Apache License 2.0
 
 using System;
-
-using Nuclex.Avalonia.ViewModels;
+using System.Threading.Tasks;
 
 namespace Nuclex.Avalonia.ViewModels {
 
-  /// <summary>Interface for dialog view models (typically modal ones)</summary>
-  public interface IDialogViewModel {
+  /// <summary>
+  ///   Can be implemented by view models that wish to know when their view is loaded
+  /// </summary>
+  public interface IViewLoadListener {
 
-    /// <summary>Indicates that the view should close</summary>
-    event EventHandler<DialogResultEventArgs> Submitted;
+    /// <summary>Called when the view has finished loading</summary>
+    /// <returns>A task what finishes when all view load processing is done</returns>
+    Task OnViewLoaded();
 
   }
 

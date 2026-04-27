@@ -1,7 +1,7 @@
 #region Apache License 2.0
 /*
 Nuclex Foundation libraries for .NET
-Copyright (C) 2002-2025 Markus Ewald / Nuclex Development Labs
+Copyright (C) 2002-2026 Markus Ewald / Nuclex Development Labs
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ limitations under the License.
 #endregion // Apache License 2.0
 
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 // General Information about an assembly is controlled through the following 
