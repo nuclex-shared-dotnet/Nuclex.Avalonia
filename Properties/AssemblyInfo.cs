@@ -27,7 +27,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyProduct("Nuclex.Avalonia")]
 [assembly: AssemblyDescription("Lean and elegant MVVM library with extras for Avalonia")]
 [assembly: AssemblyCompany("Nuclex Development Labs")]
-[assembly: AssemblyCopyright("Copyright © Markus Ewald / Nuclex Development Labs 2002-2025")]
+[assembly: AssemblyCopyright("Copyright © Markus Ewald / Nuclex Development Labs 2002-2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -46,4 +46,4 @@ using System.Runtime.InteropServices;
 //      Build Number
 //      Revision
 //
-[assembly: AssemblyVersion("1.4.0")]
+[assembly: AssemblyVersion("1.5.0")]

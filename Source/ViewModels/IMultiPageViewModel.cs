@@ -24,8 +24,11 @@ using Nuclex.Avalonia.Commands;
 namespace Nuclex.Avalonia.ViewModels {
 
   /// <summary>Interface for view models that can switch between different pages</summary>
-  /// <typeparam name="TPageEnumeration">Enum type by which pages can be indicated</typeparam>
-  public interface IMultiPageViewModel<TPageEnumeration> {
+  /// <typeparam name="TPageEnumeration">
+  ///   Type by which pages can be indicated (typically an enum)
+  /// </typeparam>
+  public interface IMultiPageViewModel<TPageEnumeration>
+    where TPageEnumeration : struct {
 
     /// <summary>Command to switch the active tool page</summary>
     IAsyncCommand<TPageEnumeration> SwitchPageCommand { get; }

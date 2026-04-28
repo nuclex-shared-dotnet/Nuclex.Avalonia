@@ -18,6 +18,7 @@ limitations under the License.
 #endregion // Apache License 2.0
 
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 
@@ -27,9 +28,12 @@ using Nuclex.Support;
 namespace Nuclex.Avalonia.ViewModels {
 
   /// <summary>Base class for view models that have multiple child view models</summary>
-  /// <typeparam name="TPageEnumeration">Enum type by which pages can be indicated</typeparam>
+  /// <typeparam name="TPageEnumeration">
+  ///   Type by which pages can be indicated (typically an enum)
+  /// </typeparam>
   public abstract class MultiPageViewModel<TPageEnumeration> :
-    Observable, IMultiPageViewModel<TPageEnumeration>, IDisposable {
+    Observable, IMultiPageViewModel<TPageEnumeration>, IDisposable
+    where TPageEnumeration : struct {
 
     /// <summary>Initializes a new multi-page view model</summary>
     /// <param name="windowManager">
@@ -98,8 +102,8 @@ namespace Nuclex.Avalonia.ViewModels {
     /// <summary>Switches to another page</summary>
     /// <param name="newPage">New page to switch to</param>
     /// <returns>A task that will finish when the new page has been switched to</returns>
-    private Task switchPageAsync(TPageEnumeration? newPage) {
-      if(newPage.Equals(this.activePage)) {
+    private Task switchPageAsync(TPageEnumeration newPage) {
+      if(Comparer.Default.Compare(this.activePage, newPage) == 0) {
         return Task.CompletedTask;
       }
 
@@ -116,7 +120,7 @@ namespace Nuclex.Avalonia.ViewModels {
 
         // Double-checked locking to avoid creating a view model for the same page
         // multiple times if the construction takes time
-        object newPageViewModel;
+        object? newPageViewModel;
         if(!this.cachedViewModels.TryGetValue(newPage, out newPageViewModel)) {
           lock(this.cachedViewModels) {
             if(!this.cachedViewModels.TryGetValue(newPage, out newPageViewModel)) {
@@ -155,7 +159,7 @@ namespace Nuclex.Avalonia.ViewModels {
     private readonly ConcurrentDictionary<TPageEnumeration, object>? cachedViewModels;
 
     /// <summary>Page that is currently active in the multi-page view model</summary>
-    private TPageEnumeration activePage;
+    private TPageEnumeration? activePage;
     /// <summary>View model for the active page</summary>
     private object? activePageViewModel;
 
