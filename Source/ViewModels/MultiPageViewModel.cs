@@ -103,7 +103,7 @@ namespace Nuclex.Avalonia.ViewModels {
     /// <param name="newPage">New page to switch to</param>
     /// <returns>A task that will finish when the new page has been switched to</returns>
     private Task switchPageAsync(TPageEnumeration newPage) {
-      if(Comparer.Default.Compare(this.activePage, newPage) == 0) {
+      if(newPage.Equals(this.activePage)) {
         return Task.CompletedTask;
       }
 

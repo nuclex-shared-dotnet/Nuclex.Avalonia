@@ -92,7 +92,7 @@ namespace Nuclex.Avalonia.CommonDialogs {
     ///   A task that will provide the pre-opened file for readiong or null if
     ///   the user has canceled the file picker dialog
     /// </returns>
-    public async Task<IStorageFile?> AskForFileToOpeAsync(
+    public async Task<IStorageFile?> AskForFileToOpenAsync(
       string caption, params FilePickerFileType[] fileTypes
     ) {
       var options = new FilePickerOpenOptions() {
